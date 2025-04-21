@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Forest Fire Prediction</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #000;
+      color: #fff;
+    }
+    .sidebar {
+      width: 400px;
+      padding: 20px;
+      overflow-y: auto;
+      background: #111;
+      border-right: 2px solid #444;
+    }
+    .sidebar h1 {
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+    .sidebar label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .sidebar input, .sidebar button {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: none;
+      font-size: 16px;
+      border-radius: 5px;
+    }
+    .sidebar input {
+      background: #222;
+      color: #fff;
+    }
+    .sidebar button {
+      background: #ff5722;
+      color: white;
+      cursor: pointer;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .box {
+      background: #222;
+      border-radius: 10px;
+      padding: 15px;
+    }
+    .main {
+      flex-grow: 1;
+      position: relative;
+    }
+    #globeViz {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+    a {
+      color: #03a9f4;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h1>🔥 Forest Fire Prediction</h1>
+    <form id="locationForm">
+      <label for="location">Enter Location (city or lat,lon):</label>
+      <input type="text" id="location" required placeholder="e.g. Delhi or 28.6,77.2">
+      <button type="submit">Predict</button>
+    </form>
+
+    <div class="section box" id="weatherInfo">
+      <h3>🌡️ Weather Data</h3>
+      <div id="weatherDetails">–</div>
+    </div>
+
+    <div class="section box" id="predictionBox">
+      <h3>🔥 Prediction</h3>
+      <div id="result">–</div>
+    </div>
+
+    <div class="section box" id="stepsBox">
+      <h3>📊 Calculation Steps</h3>
+      <div id="calcSteps">–</div>
+    </div>
+
+    <div class="section box" id="infoBox">
+      <h3>📞 Fire Department Info</h3>
+      <div id="deptInfo">–</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div id="globeViz"></div>
+  </div>
+  <div id="result"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/globe.gl@2.27.3/dist/globe.gl.min.js"></script>
+  <script>
+    let globeInstance;
+    let locations = [];
+  
+    function initializeGlobe() {
+      globeInstance = Globe()
+        .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+        .backgroundColor('#000000')
+        .showAtmosphere(true)
+        .atmosphereColor("blue")
+        .atmosphereAltitude(0.25)
+        (document.getElementById('globeViz'));
+    }
+  
+    function flyToLocation(lat, lon) {
+      if (globeInstance && !isNaN(lat) && !isNaN(lon)) {
+        globeInstance.pointOfView({ lat: lat, lng: lon, altitude: 1.5 }, 3000);
+        console.log(`Flying to: ${lat}, ${lon}`);
+      } else {
+        console.warn('Invalid coordinates or globe not ready');
+      }
+    }
+  
+    // Function to calculate fire indices
+function calculateFireIndices(temp, rh, wind, rain) {
+  if ([temp, rh, wind, rain].some(v => isNaN(v))) {
+    return { ffmc: "–", dmc: "–", dc: "–", isi: "–", risk: "–" };
+  }
+
+  // Calculate FFMC, DMC, DC, ISI, BUI, FWI
+  let ffmc = Math.max(18, Math.min(101, (0.4 * temp) + (0.2 * wind) - (0.5 * rh) + 60 - (1.5 * rain)));
+  let dmc = Math.max(0, Math.min(100, (0.2 * temp) + (0.3 * wind) + (0.5 * rh) - rain));
+  let dc = Math.max(0, Math.min(500, (0.3 * temp) + (0.4 * rh) + (0.2 * wind) + 50 - (0.5 * rain)));
+  let isi = Math.max(0, Math.min(50, 0.08 * ffmc * (1 + (wind / 10))));
+  let bui = (dmc + dc) / 2;
+  let fwi = (isi + bui) / 2;
+
+  // Determine fire risk level
+  let risk = fireRiskLevel(isi);
+
+  return {
+    ffmc: ffmc.toFixed(2),
+    dmc: dmc.toFixed(2),
+    dc: dc.toFixed(2),
+    isi: isi.toFixed(2),
+    risk: risk
+  };
+}
+
+// Function to evaluate fire risk level based on ISI
+function fireRiskLevel(isi) {
+  if (isi >= 30) {
+    return "Very High Chance of Fire";
+  } else if (isi >= 20) {
+    return "High Chance of Fire";
+  } else if (isi >= 6) {
+    return "Low Chance of Fire";
+  }
+}
+// Example: After getting temperature, humidity, wind, and rain values
+  let result = calculateFireIndices(30, 40, 10, 5);
+  
+  // Update the result element with the calculated fire risk
+  document.getElementById("result").innerText = result.risk; 
+
+  
+    const departments = {
+      "uttarakhand": {
+        phone: "1800-11-2878",
+        website: "https://forest.uk.gov.in/",
+        name: "Uttarakhand Forest Department"
+      },
+      "delhi": {
+        phone: "101",
+        website: "https://dfs.delhigovt.nic.in/",
+        name: "Delhi Fire Service"
+      }
+    };
+  
+    document.addEventListener("DOMContentLoaded", () => {
+      initializeGlobe();
+  
+      document.getElementById("locationForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const input = document.getElementById("location").value.trim();
+        let guessed = "delhi";
+        if (/uttarakhand/i.test(input)) guessed = "uttarakhand";
+  
+        try {
+          const response = await fetch("/predict_location", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ location: input })
+          });
+  
+          const result = await response.json();
+  
+          if (result.error) {
+            alert("Error: " + result.error);
+            console.error(result.error);
+            return;
+          }
+  
+          const temp = parseFloat(result.temp);
+          const rh = parseFloat(result.rh);
+          const wind = parseFloat(result.wind);
+          const rain = parseFloat(result.rain);
+          const lat = result.lat;
+          const lon = result.lon;
+  
+          const indices = calculateFireIndices(temp, rh, wind, rain);
+  
+          document.getElementById("weatherDetails").innerHTML = `
+            🌡️ <strong>Temperature:</strong> ${temp}°C<br>
+            💧 <strong>Humidity:</strong> ${rh}%<br>
+            🌬️ <strong>Wind Speed:</strong> ${wind} km/h<br>
+            ☔ <strong>Rainfall:</strong> ${rain} mm<br><br>
+            🔥 <strong>FFMC:</strong> ${indices.ffmc}<br>
+            🌲 <strong>DMC:</strong> ${indices.dmc}<br>
+            🌳 <strong>DC:</strong> ${indices.dc}<br>
+            🚀 <strong>ISI:</strong> ${indices.isi}
+          `;
+  
+         
+  
+          document.getElementById("calcSteps").innerHTML = `
+            🔹 Weather fetched from NASA API<br>
+            🔹 Fire indices calculated (FFMC, DMC, DC, ISI)<br>
+            🔹 Prediction model applied
+          `;
+  
+          if (result.prediction === "fire") {
+            const dept = departments[guessed];
+            document.getElementById("deptInfo").innerHTML = `
+              <strong>${dept.name}</strong><br>
+              📞 ${dept.phone}<br>
+              🌐 <a href="${dept.website}" target="_blank">${dept.website}</a>
+            `;
+          } else {
+            document.getElementById("deptInfo").innerHTML = "Not required.";
+          }
+  
+          if (!isNaN(lat) && !isNaN(lon)) {
+            flyToLocation(lat, lon);
+  
+            locations.push({ lat, lng: lon, color: 'red' });
+            globeInstance
+              .pointsData(locations)
+              .pointLat(d => d.lat)
+              .pointLng(d => d.lng)
+              .pointColor(d => d.color)
+              .pointAltitude(() => 0.01)
+              .pointRadius(() => 0.4);
+          }
+        } catch (err) {
+          alert("Failed to fetch data from server.");
+          console.error("Error:", err);
+        }
+      });
+    });
+  </script>
+  
+</body>
+</html>
